@@ -22,7 +22,7 @@ from agd_prime   import AGD
 ############################################################################################
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--arch',       type=str,   default='fcn',      choices=['fcn', 'vgg', 'resnet18', 'resnet50']       )
+parser.add_argument('--arch',       type=str,   default='resnet18',      choices=['fcn', 'vgg', 'resnet18', 'resnet50']       )
 parser.add_argument('--dataset',    type=str,   default='cifar10',  choices=['cifar10', 'cifar100', 'mnist', 'imagenet'] )
 parser.add_argument('--loss',       type=str,   default='mse',      choices=['mse', 'xent']                              )
 parser.add_argument('--train_bs',   type=int,   default=128  )
@@ -31,8 +31,10 @@ parser.add_argument('--epochs',     type=int,   default=200  )
 parser.add_argument('--depth',      type=int,   default=10   )
 parser.add_argument('--width',      type=int,   default=256  )
 parser.add_argument('--distribute', action='store_true'      )
+# regularisation/experimental hyperparameters
 parser.add_argument('--beta',       type=float, default=0.0  )
 parser.add_argument('--gain',       type=float, default=1.0  )
+parser.add_argument('--wmult',      type=float, default=1.0  )
 args = parser.parse_args()
 
 ############################################################################################
@@ -120,6 +122,8 @@ def loop(net, dataloader, optim, train):
     epoch_loss = 0
     epoch_acc  = 0
     epoch_log  = 0
+    max_epoch_log = 0
+    min_epoch_log = 1e10
 
     for data, target in tqdm(dataloader, total=num_minibatches):
         data, target = data.to(device), target.to(device)
@@ -144,13 +148,16 @@ def loop(net, dataloader, optim, train):
             acc  /= world_size
 
         if train:
-            epoch_log += optim.step()
+            iteration_log = optim.step()
+            epoch_log += iteration_log
+            max_epoch_log, min_epoch_log = max(iteration_log, max_epoch_log), min(iteration_log, min_epoch_log)
             net.zero_grad()
 
         epoch_acc += acc.item()
         epoch_loss += loss.item()
 
-    return epoch_loss / num_minibatches, epoch_acc / num_minibatches, epoch_log / num_minibatches
+    return epoch_loss / num_minibatches, epoch_acc / num_minibatches, \
+           [min_epoch_log, epoch_log / num_minibatches, max_epoch_log]
 
 
 ############################################################################################
@@ -178,7 +185,7 @@ for epoch in range(args.epochs):
     train_loss, train_acc, log = loop(net, train_loader,  agd,  train=True  )
     test_loss,   test_acc,   _ = loop(net, test_loader,   None, train=False )
 
-    print("Log term:  \t", log        )
+    print("Log term:  \t", log[1]     )
     print("Train loss:\t", train_loss )
     print("Test loss: \t", test_loss  )
     print("Train acc: \t", train_acc  )

@@ -11,7 +11,7 @@ def singular_value(p):
 
 class AGD:
     @torch.no_grad()
-    def __init__(self, net, gain=1.0):
+    def __init__(self, net, gain=1.0, wmult=1.0):
 
         self.net = net
         self.depth = 0
@@ -49,7 +49,7 @@ class AGD:
                 for kx in range(p.shape[2]):
                     for ky in range(p.shape[3]):
                         orthogonal_(p[:, :, kx, ky])
-            p *= singular_value(p)
+            p *= singular_value(p) * wmult
 
     @torch.no_grad()
     def step(self):
