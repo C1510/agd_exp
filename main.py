@@ -30,12 +30,14 @@ parser.add_argument('--test_bs',    type=int,   default=128  )
 parser.add_argument('--epochs',     type=int,   default=200  )
 parser.add_argument('--depth',      type=int,   default=10   )
 parser.add_argument('--width',      type=int,   default=256  )
+parser.add_argument('--bias',       type=str,   default='True')
 parser.add_argument('--distribute', action='store_true'      )
 # regularisation/experimental hyperparameters
 parser.add_argument('--beta',       type=float, default=0.0  )
 parser.add_argument('--gain',       type=float, default=1.0  )
 parser.add_argument('--wmult',      type=float, default=1.0  )
 args = parser.parse_args()
+args.bias = True if args.bias == 'True' else False
 
 ############################################################################################
 #################################### Distributed setup #####################################
@@ -99,7 +101,7 @@ else:
 ##################################### Set architecture #####################################
 ############################################################################################
 
-net = getNetwork(args, input_dim, output_dim).to(device)
+net = getNetwork(args, input_dim, output_dim, bias=args.bias, affine=args.bias).to(device)
 agd = AGD(net, args.gain)
 
 if args.distribute:
