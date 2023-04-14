@@ -11,10 +11,10 @@ def singular_value(p):
 
 class AGD:
     @torch.no_grad()
-    def __init__(self, net, gain=1.0):
+    def __init__(self, net, gain=1.0, wmult=1.0):
 
         self.net = net
-        self.depth = len(list(net.parameters()))
+        self.depth = 0
         self.gain = gain
 
         groups = []
@@ -23,9 +23,11 @@ class AGD:
             if 'weight' in name and p.dim() == 2:
                 groups.append(curr)
                 curr = [name]
+                self.depth += 1
             elif 'weight' in name and p.dim() == 4:
                 groups.append(curr)
                 curr = [name]
+                self.depth += 1
             else:
                 curr.append(name)
         if curr != groups[-1]:
@@ -47,7 +49,7 @@ class AGD:
                 for kx in range(p.shape[2]):
                     for ky in range(p.shape[3]):
                         orthogonal_(p[:, :, kx, ky])
-            p *= singular_value(p)
+            p *= singular_value(p) * wmult
 
     @torch.no_grad()
     def step(self):
@@ -66,7 +68,7 @@ class AGD:
             p = self.params_dict[name[0]]
             p -= update * p.grad / p_main.grad.norm(dim=(0, 1), keepdim=True)
             denom = p_main.grad.norm()
-            for name_ in name:
+            for name_ in name[1:]:
                 p = self.params_dict[name_]
                 p -= update * p.grad / denom
 

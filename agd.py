@@ -28,16 +28,12 @@ class AGD:
 
     @torch.no_grad()
     def step(self):
-
         G = 0
         for p in self.net.parameters():
             G += singular_value(p) * p.grad.norm(dim=(0,1)).sum()
         G /= self.depth
-
         log = math.log(0.5 * (1 + math.sqrt(1 + 4*G)))
-
         for p in self.net.parameters():
             factor = singular_value(p) / p.grad.norm(dim=(0,1), keepdim=True)
             p -= self.gain * log / self.depth * factor * p.grad
-
         return log
