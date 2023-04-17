@@ -20,6 +20,8 @@ class AGD:
         groups = []
         curr = []
         for name, p in net.named_parameters():
+            if 'ln_' in name:
+                continue
             if 'weight' in name and p.dim() == 2:
                 groups.append(curr)
                 curr = [name]
@@ -38,6 +40,9 @@ class AGD:
         self.params_dict = dict(net.named_parameters())
 
         for name, p in net.named_parameters():
+            print(name, p.shape)
+            if 'ln_' in name:
+                continue
             if p.dim() == 1 and 'weight' in name:
                 continue
             if p.dim() == 1 and 'bias' in name:
@@ -51,11 +56,17 @@ class AGD:
                         orthogonal_(p[:, :, kx, ky])
             p *= singular_value(p) * wmult
 
+        print('DEPTH: ',self.depth)
+        print(self.groups)
+        self.depth = 50
+
     @torch.no_grad()
     def step(self):
 
         G = 0
-        for p in self.net.parameters():
+        for name, p in self.net.named_parameters():
+            if 'ln_' in name:
+                continue
             if p.dim() != 1:
                 G += singular_value(p) * p.grad.norm(dim=(0,1)).sum()
         G /= self.depth

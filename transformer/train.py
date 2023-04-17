@@ -28,6 +28,7 @@ import time
 import math
 import pickle
 from contextlib import nullcontext
+from glob import glob
 
 import numpy as np
 import torch
@@ -85,6 +86,8 @@ config_keys = [k for k,v in globals().items() if not k.startswith('_') and isins
 exec(open('configurator.py').read()) # overrides from command line or config file
 config = {k: globals()[k] for k in config_keys} # will be useful for logging
 # -----------------------------------------------------------------------------
+
+log_num = len(list(glob('logs/*')))
 
 # various inits, derived attributes, I/O setup
 ddp = int(os.environ.get('RANK', -1)) != -1 # is this a ddp run?
@@ -199,6 +202,8 @@ optimizer = AGD(model)
 if init_from == 'resume':
     optimizer.load_state_dict(checkpoint['optimizer'])
 
+print(model)
+
 # compile the model
 if compile:
     print("compiling the model... (takes a ~minute)")
@@ -275,7 +280,6 @@ while True:
             if iter_num > 0:
                 checkpoint = {
                     'model': raw_model.state_dict(),
-                    'optimizer': optimizer.state_dict(),
                     'model_args': model_args,
                     'iter_num': iter_num,
                     'best_val_loss': best_val_loss,
@@ -302,10 +306,12 @@ while True:
         # backward pass, with gradient scaling if training in fp16
         scaler.scale(loss).backward()
     # clip the gradient
-    if grad_clip != 0.0:
-        scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+    # if grad_clip != 0.0:
+    #     scaler.unscale_(optimizer)
+    #     torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
     # step the optimizer and scaler if training in fp16
+    eta = optimizer.step()
+    model.zero_grad()
     '''
     scaler.step(optimizer)
     scaler.update()
@@ -325,6 +331,10 @@ while True:
         print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, mfu {running_mfu*100:.2f}%")
     iter_num += 1
     local_iter_num += 1
+
+
+    with open(f'logs/{log_num}.txt', 'a+') as file:
+        file.write(f"iter {iter_num}: eta {eta:.4f} loss {lossf:.4f}, time {dt*1000:.2f}ms, mfu {running_mfu*100:.2f}%"+"\n")
 
     # termination conditions
     if iter_num > max_iters:

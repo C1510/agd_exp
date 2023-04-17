@@ -7,4 +7,4 @@ export py=/users/hert5217/anaconda3/envs/torch2/bin/python3
 
 #export q=gpu24gb
 
-addqueue -q gpu24gb -n 1x4 -m 12 -s $py train.py config/train_shakespeare_char.py
+addqueue -q gpu24gb -n 1x4 -m 7 -s $py train.py config/train_shakespeare_char.py
