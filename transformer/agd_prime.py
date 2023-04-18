@@ -3,8 +3,11 @@ import torch
 
 from torch.nn.init import orthogonal_, zeros_
 
-def singular_value(p):
-    sv = math.sqrt(p.shape[0] / p.shape[1])
+def singular_value(name, p):
+    if 'attn' not in name:
+        sv = math.sqrt(p.shape[0] / p.shape[1])
+    else:
+        sv = math.sqrt(p.shape[0] / (3*p.shape[1]) )
     if p.dim() == 4:
         sv /= math.sqrt(p.shape[2] * p.shape[3])
     return sv
@@ -25,11 +28,11 @@ class AGD:
             if 'weight' in name and p.dim() == 2:
                 groups.append(curr)
                 curr = [name]
-                self.depth += 1
+                self.depth += 1 if 'attn' not in name else 3
             elif 'weight' in name and p.dim() == 4:
                 groups.append(curr)
                 curr = [name]
-                self.depth += 1
+                self.depth += 1 if 'attn' not in name else 3
             else:
                 curr.append(name)
         if curr != groups[-1]:
@@ -54,11 +57,11 @@ class AGD:
                 for kx in range(p.shape[2]):
                     for ky in range(p.shape[3]):
                         orthogonal_(p[:, :, kx, ky])
-            p *= singular_value(p) * wmult
+            p *= singular_value(name, p) * wmult
 
         print('DEPTH: ',self.depth)
         print(self.groups)
-        self.depth = 50
+        #self.depth = 50
 
     @torch.no_grad()
     def step(self):
@@ -68,14 +71,14 @@ class AGD:
             if 'ln_' in name:
                 continue
             if p.dim() != 1:
-                G += singular_value(p) * p.grad.norm(dim=(0,1)).sum()
+                G += singular_value(name, p) * p.grad.norm(dim=(0,1)).sum()
         G /= self.depth
 
         log = math.log(0.5 * (1 + math.sqrt(1 + 4*G)))
 
         for name in self.groups:
             p_main = self.params_dict[name[0]]
-            update = log / self.depth * singular_value(p_main)
+            update = log / self.depth * singular_value(name, p_main)
             p = self.params_dict[name[0]]
             p -= update * p.grad / p_main.grad.norm(dim=(0, 1), keepdim=True)
             denom = p_main.grad.norm()
