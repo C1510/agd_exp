@@ -2,7 +2,16 @@
 Automatic Gradient Descent (Experimental Repository)
 </h1>
 
-This repository is a companion to [Jeremy's Github](https://github.com/jxbz/agd). It will be updated as we continue working on AGD, so at any point there are likely to be bugs not found in Jeremy's. Currently, it includes support for biases and affine parameters, although there is as yet not a rigorous theory behind these. We're also working on making it work for transformers (using minGPT as a base model), and investigating weight decay and similar methods of regularisation.
+This repository is a companion to [Jeremy's Github](https://github.com/jxbz/agd). It will be updated as we continue working on AGD, so at any point there are likely to be bugs not found in Jeremy's. 
+Currently, it includes support for biases and affine parameters, although there is as yet not a rigorous theory behind these. 
+We're also working on making it work for transformers (using minGPT as a base model). We have a minimum working
+example (still under testing) capable of training a GPT-2 based model on OpenWebText2 (final accuracy pending).
+
+To run the transformer-based experiments go to the transformer/ directory, and run either
+```
+python main.py config/train_shakespeare_char.py
+python main.py config/train_gpt2.py
+```
 
 <p align="center">
   <img src="https://github.com/jxbz/thesis/blob/main/img/art1.png" width="300"/>
