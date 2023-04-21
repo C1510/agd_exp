@@ -3,9 +3,20 @@ import torch
 
 from torch.nn.init import orthogonal_, zeros_
 
+def get_depth_val(name):
+    if 'c_fc' in name:
+        return 1
+    elif 'attn' in name:
+        return 3
+    else:
+        return 1
+
 def singular_value(name, p):
-    if 'attn' not in name:
-        sv = math.sqrt(p.shape[0] / p.shape[1])
+    if get_depth_val(name) == 1:
+        if ('transformer.wte.weight' in name) or ('transformer.wpe.weight' in name):
+            sv = math.sqrt(p.shape[1] / p.shape[0])
+        else:
+            sv = math.sqrt(p.shape[0] / p.shape[1])
     else:
         sv = math.sqrt(p.shape[0] / (3*p.shape[1]) )
     if p.dim() == 4:
@@ -19,6 +30,7 @@ class AGD:
         self.net = net
         self.depth = 0
         self.gain = gain
+        #self.gain = 0.1
 
         groups = []
         curr = []
@@ -28,11 +40,11 @@ class AGD:
             if 'weight' in name and p.dim() == 2:
                 groups.append(curr)
                 curr = [name]
-                self.depth += 1 if 'attn' not in name else 3
+                self.depth += get_depth_val(name)
             elif 'weight' in name and p.dim() == 4:
                 groups.append(curr)
                 curr = [name]
-                self.depth += 1 if 'attn' not in name else 3
+                self.depth += get_depth_val(name)
             else:
                 curr.append(name)
         if curr != groups[-1]:
@@ -43,7 +55,7 @@ class AGD:
         self.params_dict = dict(net.named_parameters())
 
         for name, p in net.named_parameters():
-            print(name, p.shape)
+            #print(name, p.shape)
             if 'ln_' in name:
                 continue
             if p.dim() == 1 and 'weight' in name:
@@ -61,7 +73,7 @@ class AGD:
 
         print('DEPTH: ',self.depth)
         print(self.groups)
-        #self.depth = 50
+        # self.depth *= 2
 
     @torch.no_grad()
     def step(self):
@@ -71,10 +83,11 @@ class AGD:
             if 'ln_' in name:
                 continue
             if p.dim() != 1:
+                #print(name, p.shape, singular_value(name, p), p.grad.norm(dim=(0,1)).sum(),  singular_value(name, p) * p.grad.norm(dim=(0,1)).sum())
                 G += singular_value(name, p) * p.grad.norm(dim=(0,1)).sum()
         G /= self.depth
 
-        log = math.log(0.5 * (1 + math.sqrt(1 + 4*G)))
+        log = self.gain*math.log(0.5 * (1 + math.sqrt(1 + 4*G)))
 
         for name in self.groups:
             p_main = self.params_dict[name[0]]
