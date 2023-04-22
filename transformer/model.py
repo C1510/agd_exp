@@ -7,7 +7,7 @@ https://github.com/openai/gpt-2/blob/master/src/model.py
 https://github.com/huggingface/transformers/blob/main/src/transformers/models/gpt2/modeling_gpt2.py
 """
 
-import math
+import math, sys
 import inspect
 from dataclasses import dataclass
 
@@ -108,11 +108,8 @@ class Block(nn.Module):
         self.mlp = MLP(config)
 
     def forward(self, x):
-        #print(x.norm() / math.sqrt(x.shape[0]*x.shape[1]), x.shape, math.sqrt(x.shape[-1]), 'pre attn')
         x = x + self.attn(self.ln_1(x))
-        #print(x.norm() / math.sqrt(x.shape[0]*x.shape[1]), x.shape, math.sqrt(x.shape[-1]), 'pre mlp')
         x = x + self.mlp(self.ln_2(x))
-        #print(x.norm() / math.sqrt(x.shape[0]*x.shape[1]), x.shape, math.sqrt(x.shape[-1]), 'post mlp')
         return x
 
 @dataclass
@@ -145,8 +142,7 @@ class GPT(nn.Module):
         # "UserWarning: functional_call was passed multiple values for tied weights.
         # This behavior is deprecated and will be an error in future versions"
         # not 100% sure what this is, so far seems to be harmless. TODO investigate
-        # MASSIVE CHRIS EDIT
-        #self.transformer.wte.weight = self.lm_head.weight # https://paperswithcode.com/method/weight-tying
+        self.transformer.wte.weight = self.lm_head.weight # https://paperswithcode.com/method/weight-tying
 
         # init all weights
         self.apply(self._init_weights)
@@ -187,16 +183,16 @@ class GPT(nn.Module):
         # forward the GPT model itself
         tok_emb = self.transformer.wte(idx) * math.sqrt(self.transformer.wte.weight.shape[0]) # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos) * math.sqrt(self.transformer.wpe.weight.shape[0]) # position embeddings of shape (1, t, n_embd)
+        #print(tok_emb.norm()/math.sqrt(tok_emb.shape[0]*tok_emb.shape[1]))
+        #print(pos_emb.norm()/math.sqrt(pos_emb.shape[0]*pos_emb.shape[1]))
+        #print('u',pos_emb)
+        #print('v',tok_emb)
+        #sys.exit()
+
         x = self.transformer.drop(tok_emb + pos_emb)
-        #print('init',x.norm()/math.sqrt(x.shape[0]*x.shape[1]), x.shape)
         for block in self.transformer.h:
             x = block(x)
         x = self.transformer.ln_f(x)
-        #print('final',x.norm()/math.sqrt(x.shape[0]*x.shape[1]), x.shape)
-        # CHRIS EDIT AGAIN
-        #dims = self.lm_head.weight.shape
-        #x *= math.sqrt(dims[0] / dims[1])
-        #print('final',x.norm()/math.sqrt(x.shape[0]*x.shape[1]), x.shape)
 
         if targets is not None:
             # if we are given some desired targets also calculate the loss

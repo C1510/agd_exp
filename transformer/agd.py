@@ -4,24 +4,20 @@ import torch
 from torch.nn.init import orthogonal_, zeros_
 
 def get_depth_val(name):
-    if 'c_fc' in name:
-        return 1
-    elif 'attn' in name:
+    if '_attn' in name:
         return 3
     else:
         return 1
 
+
 def singular_value(name, p):
-    if get_depth_val(name) == 1:
-        if ('transformer.wte.weight' in name) or ('transformer.wpe.weight' in name):
-            sv = math.sqrt(p.shape[1] / p.shape[0])
-        else:
-            sv = math.sqrt(p.shape[0] / p.shape[1])
+    depth = get_depth_val(name)
+    if ('transformer.wte.weight' in name) or ('transformer.wpe.weight' in name):
+        sv = math.sqrt(p.shape[1] / (depth*p.shape[0]))
     else:
-        sv = math.sqrt(p.shape[0] / (3*p.shape[1]) )
-    if p.dim() == 4:
-        sv /= math.sqrt(p.shape[2] * p.shape[3])
+        sv = math.sqrt(p.shape[0] / (depth*p.shape[1]))
     return sv
+
 
 class AGD:
     @torch.no_grad()
@@ -30,7 +26,6 @@ class AGD:
         self.net = net
         self.depth = 0
         self.gain = gain
-        #self.gain = 0.1
 
         groups = []
         curr = []
@@ -38,10 +33,6 @@ class AGD:
             if 'ln_' in name:
                 continue
             if 'weight' in name and p.dim() == 2:
-                groups.append(curr)
-                curr = [name]
-                self.depth += get_depth_val(name)
-            elif 'weight' in name and p.dim() == 4:
                 groups.append(curr)
                 curr = [name]
                 self.depth += get_depth_val(name)
@@ -55,7 +46,6 @@ class AGD:
         self.params_dict = dict(net.named_parameters())
 
         for name, p in net.named_parameters():
-            #print(name, p.shape)
             if 'ln_' in name:
                 continue
             if p.dim() == 1 and 'weight' in name:
@@ -73,7 +63,6 @@ class AGD:
 
         print('DEPTH: ',self.depth)
         print(self.groups)
-        # self.depth *= 2
 
     @torch.no_grad()
     def step(self):
