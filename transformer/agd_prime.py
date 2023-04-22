@@ -14,9 +14,11 @@ def get_depth_val(name):
 def singular_value(name, p):
     if get_depth_val(name) == 1:
         if ('transformer.wte.weight' in name) or ('transformer.wpe.weight' in name):
-            sv = math.sqrt(p.shape[1]) # / p.shape[0])
-        else:
-            sv = math.sqrt(p.shape[0] / p.shape[1])
+            sv = math.sqrt(p.shape[1] / p.shape[0])
+        #if 'lm_head' in name:
+        #    sv = math.sqrt(p.shape[0] / p.shape[1])
+        #else:
+        sv = math.sqrt(p.shape[0] / p.shape[1])
     else:
         sv = math.sqrt(p.shape[0] / (3*p.shape[1]) )
     if p.dim() == 4:
@@ -102,6 +104,6 @@ class AGD:
             for name_ in name[1:]:
                 p = self.params_dict[name_]
                 p -= update * p.grad / denom
-        print('LOG', log)
-        sys.exit()
+        #print('LOG', log)
+        #sys.exit()
         return log
