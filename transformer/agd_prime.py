@@ -14,7 +14,7 @@ def get_depth_val(name):
 def singular_value(name, p):
     if get_depth_val(name) == 1:
         if ('transformer.wte.weight' in name) or ('transformer.wpe.weight' in name):
-            sv = math.sqrt(p.shape[1] / p.shape[0])
+            sv = math.sqrt(p.shape[1]) # / p.shape[0])
         else:
             sv = math.sqrt(p.shape[0] / p.shape[1])
     else:
@@ -35,6 +35,7 @@ class AGD:
         groups = []
         curr = []
         for name, p in net.named_parameters():
+
             if 'ln_' in name:
                 continue
             if 'weight' in name and p.dim() == 2:
@@ -58,6 +59,8 @@ class AGD:
             #print(name, p.shape)
             if 'ln_' in name:
                 continue
+            if 'lm_' in name:
+                continue
             if p.dim() == 1 and 'weight' in name:
                 continue
             if p.dim() == 1 and 'bias' in name:
@@ -70,6 +73,7 @@ class AGD:
                     for ky in range(p.shape[3]):
                         orthogonal_(p[:, :, kx, ky])
             p *= singular_value(name, p) * wmult
+            print(name, p.shape, singular_value(name, p))
 
         print('DEPTH: ',self.depth)
         print(self.groups)
@@ -98,5 +102,6 @@ class AGD:
             for name_ in name[1:]:
                 p = self.params_dict[name_]
                 p -= update * p.grad / denom
-
+        print('LOG', log)
+        sys.exit()
         return log
