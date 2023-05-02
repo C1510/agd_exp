@@ -54,7 +54,7 @@ class AGD:
             if 'layer' not in name:
                 return 1
             if 'shortcut' in name:
-                return 1
+                return len(self.net.num_blocks)
             else:
                 block_num = int(name.split('.')[0].split('layer')[-1])-1
                 return len(self.net.num_blocks) ** (1/self.net.num_blocks[block_num])
