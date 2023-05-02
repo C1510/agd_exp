@@ -108,8 +108,11 @@ class Block(nn.Module):
         self.mlp = MLP(config)
 
     def forward(self, x):
+        #print('xin',x)
         x = x + self.attn(self.ln_1(x))
+        #print('xmid',x)
         x = x + self.mlp(self.ln_2(x))
+        #print('xout',x)
         return x
 
 @dataclass
@@ -142,7 +145,10 @@ class GPT(nn.Module):
         # "UserWarning: functional_call was passed multiple values for tied weights.
         # This behavior is deprecated and will be an error in future versions"
         # not 100% sure what this is, so far seems to be harmless. TODO investigate
+        #print('SHAPES', self.lm_head.weight.shape, self.transformer.wte.weight.shape)
         self.transformer.wte.weight = self.lm_head.weight # https://paperswithcode.com/method/weight-tying
+        print('SHAPES', self.lm_head.weight.shape, self.transformer.wte.weight.shape, self.transformer.wpe.weight.shape)
+        #sys.exit()
 
         # init all weights
         self.apply(self._init_weights)
@@ -181,8 +187,9 @@ class GPT(nn.Module):
         pos = torch.arange(0, t, dtype=torch.long, device=device).unsqueeze(0) # shape (1, t)
 
         # forward the GPT model itself
-        tok_emb = self.transformer.wte(idx) * math.sqrt(self.transformer.wte.weight.shape[0]) # token embeddings of shape (b, t, n_embd)
-        pos_emb = self.transformer.wpe(pos) * math.sqrt(self.transformer.wpe.weight.shape[0]) # position embeddings of shape (1, t, n_embd)
+        wte0, wte1, wpe0, wpe1 = self.transformer.wte.weight.shape[0], self.transformer.wte.weight.shape[1], self.transformer.wpe.weight.shape[0], self.transformer.wpe.weight.shape[1]
+        tok_emb = self.transformer.wte(idx)* math.sqrt(wte1**2/wte0)  #* math.sqrt(self.transformer.wte.weight.shape[0]) # token embeddings of shape (b, t, n_embd)
+        pos_emb = self.transformer.wpe(pos)* math.sqrt(wpe1**2/wpe0) #* math.sqrt(self.transformer.wpe.weight.shape[0]) # position embeddings of shape (1, t, n_embd)
         #print(tok_emb.norm()/math.sqrt(tok_emb.shape[0]*tok_emb.shape[1]))
         #print(pos_emb.norm()/math.sqrt(pos_emb.shape[0]*pos_emb.shape[1]))
         #print('u',pos_emb)
@@ -194,10 +201,16 @@ class GPT(nn.Module):
             x = block(x)
         x = self.transformer.ln_f(x)
 
+        #sys.exit()
+
         if targets is not None:
             # if we are given some desired targets also calculate the loss
             logits = self.lm_head(x)
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+            #logits *= self.lm_head.weight.shape[0]/self.lm_head.weight.shape[1]
+            #print(logits)
+            #sys.exit()
+            #loss = - logits[range(target.shape[0]),target] + logits.logsumexp(dim=1)
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1) # / math.sqrt(self.lm_head.weight.shape[0])
         else:
             # inference-time mini-optimization: only forward the lm_head on the very last position
             logits = self.lm_head(x[:, [-1], :]) # note: using list [-1] to preserve the time dim
