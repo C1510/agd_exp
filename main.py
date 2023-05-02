@@ -102,7 +102,7 @@ else:
 ############################################################################################
 
 net = getNetwork(args, input_dim, output_dim, bias=args.bias, affine=args.bias).to(device)
-agd = AGD(net, args.gain)
+agd = AGD(net, args, args.gain)
 
 if args.distribute:
     net = torch.nn.parallel.DistributedDataParallel(net, device_ids=[local_rank])

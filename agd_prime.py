@@ -3,23 +3,19 @@ import torch
 
 from torch.nn.init import orthogonal_, zeros_
 
-def singular_value(p):
-    sv = math.sqrt(p.shape[0] / p.shape[1])
-    if p.dim() == 4:
-        sv /= math.sqrt(p.shape[2] * p.shape[3])
-    return sv
-
 class AGD:
     @torch.no_grad()
-    def __init__(self, net, gain=1.0, wmult=1.0):
+    def __init__(self, net, args, gain=1.0, wmult=1.0):
 
         self.net = net
         self.depth = 0
         self.gain = gain
+        self.args = args
 
         groups = []
         curr = []
         for name, p in net.named_parameters():
+            print(name)
             if 'weight' in name and p.dim() == 2:
                 groups.append(curr)
                 curr = [name]
@@ -49,22 +45,39 @@ class AGD:
                 for kx in range(p.shape[2]):
                     for ky in range(p.shape[3]):
                         orthogonal_(p[:, :, kx, ky])
-            p *= singular_value(p) * wmult
+            p *= self.singular_value(name, p) * wmult
+
+    def get_block_scale(self, name):
+        if 'resnet' not in self.args.arch:
+            return 1
+        else:
+            if 'layer' not in name:
+                return 1
+            else:
+                block_num = int(name.split('.')[0].split('layer')[-1])-1
+                return len(self.net.num_blocks) ** (1/self.net.num_blocks[block_num])
+
+    def singular_value(self, name, p):
+        sv = math.sqrt(p.shape[0] / p.shape[1])
+        if p.dim() == 4:
+            sv /= math.sqrt(p.shape[2] * p.shape[3])
+        sv /= math.sqrt(self.get_block_scale(name))
+        return sv
 
     @torch.no_grad()
     def step(self):
 
         G = 0
-        for p in self.net.parameters():
+        for name, p in self.net.named_parameters():
             if p.dim() != 1:
-                G += singular_value(p) * p.grad.norm(dim=(0,1)).sum()
+                G += self.singular_value(name, p) * p.grad.norm(dim=(0,1)).sum()
         G /= self.depth
 
         log = math.log(0.5 * (1 + math.sqrt(1 + 4*G)))
 
         for name in self.groups:
             p_main = self.params_dict[name[0]]
-            update = log / self.depth * singular_value(p_main)
+            update = log / self.depth * self.singular_value(name[0], p_main)
             p = self.params_dict[name[0]]
             p -= update * p.grad / p_main.grad.norm(dim=(0, 1), keepdim=True)
             denom = p_main.grad.norm()
