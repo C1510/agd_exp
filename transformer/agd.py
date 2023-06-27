@@ -6,14 +6,19 @@ from torch.nn.init import orthogonal_, zeros_
 def get_depth_val(name, n_layer):
     if '_attn' in name:
         return 3
-    elif 'c_proj.weight' in name:
-        return n_layer
+    # elif 'c_proj.weight' in name:
+    #     return n_layer
     else:
         return 1
 
 
 def singular_value(name, p, n_layer):
-    depth = get_depth_val(name, n_layer)
+    if '_attn' in name:
+        depth = 3
+    elif 'c_proj.weight' in name:
+        depth =  n_layer
+    else:
+        depth = 1
     #if ('transformer.wte.weight' in name) or ('transformer.wpe.weight' in name):
         #sv = math.sqrt(p.shape[1] / (depth*p.shape[0]))
     #else:
